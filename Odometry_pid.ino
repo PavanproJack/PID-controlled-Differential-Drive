@@ -13,10 +13,11 @@ int wheelDistance = 14;
 float meanDistance;
 float finalX = 0.0;
 float finalY = 0.0;
+float finalTheta = 0.0;
 int turn = 0;
 int16_t count_left_e;
 int16_t count_right_e;
-float finalTheta = 0.0;
+
 
 
 const int capacity = JSON_OBJECT_SIZE(6);
@@ -72,7 +73,7 @@ void setup() {
 int count = 0;
  
 void loop(){
-Serial.println("Turn:" + String(turn) + "Count:" + String(count));
+//Serial.println("Turn:" + String(turn) + "Count:" + String(count));
 
 if(turn == 0){
     if(count >= 700){
@@ -128,7 +129,7 @@ void calcOdometry(int16_t encoderLPos, int16_t encoderRPos, int turn){
                       "Final Theta : " + String(finalTheta * 57.2958) + "\t" + 
                       "final X : " + String(xProj) + "\t" + 
                       "final Y : " + String(yProj)
-                      );*/
+                      )*/
         }
       else if(turn == 1){   // Turn 180 degrees opposite to start location
 
@@ -140,7 +141,7 @@ void calcOdometry(int16_t encoderLPos, int16_t encoderRPos, int turn){
         
            float t = theta * 57.2958;
            int difference = -180 - t;
-           Serial.println("Inside Turn 1");
+           //Serial.println("Inside Turn 1");
            Serial.println("Difference Angle is : " + String(difference));
            
               if(difference > 0){
@@ -161,9 +162,6 @@ void calcOdometry(int16_t encoderLPos, int16_t encoderRPos, int turn){
                            xProj = 0;
                            yProj = 0;
                            theta = 0;
-                         //count_left_e = encoders.getCountsLeft();
-                         //count_right_e = encoders.getCountsRight();
-                       
                        stopAll();
                        delay(2000);
                         
@@ -172,25 +170,23 @@ void calcOdometry(int16_t encoderLPos, int16_t encoderRPos, int turn){
                      
         }else if(turn == 2){   // Now move forward towards Start point.
 
-          Serial.println("Inside Turn 2");
+          //Serial.println("Left Count : " + String(encoders.getCountsLeft()));
+          //Serial.println("Right Count : " + String(encoders.getCountsRight()));
             
-          /*Serial.println("Difference X is : " + String(float(finalX - xProj)));
-          Serial.println(
-                      "final X : " + String(xProj) + "\t" + 
-                      "final Y : " + String(yProj)
-                      );
+          Serial.println("Difference X is : " + String(float(finalX - xProj)));
           
           if(int(finalX - xProj) == 0){
               all_stop();
             }else{   
               Serial.println("Moving Forward");
                 moveForward();
+                motor_drive(18, 18);
                 Serial.println(
                       "New X : " + String(xProj) + "\t" + 
                       "NEW Y : " + String(yProj)
                       );
                       delay(1700);
-              }*/
+              }
           }
   }
 
@@ -199,6 +195,12 @@ void stopAll(){
       analogWrite( L_PWM_PIN, 0);
       analogWrite( R_PWM_PIN, 0);
       turn = 2;
+      Serial.println(
+                      "Final Theta : " + String(finalTheta * 57.2958) + "\t" + 
+                      "final X : " + String(finalX) + "\t" + 
+                      "final Y : " + String(finalY)
+                      );
+                      delay(3000);
     }
 
 void resetEncoders(){
