@@ -1,4 +1,28 @@
-#include <ArduinoJson.h>
+/*
+This code is submitted as a part of Robotics Systems Assessment May 2020.
+
+This code uses open source pololu/romi-32u4-arduino-library available at https://github.com/pololu/romi-32u4-arduino-library
+
+Robot moves forward in white space until it encounters a black line. It folows the black line 
+and when it dentifies line break with high confifdence, it return home. Through out this process,
+odometry calculations are carried out in loop.
+
+Optimal performance with PID is achieved with constants Kp 0.005, Kd 1.0 and Ki 0.0002.
+
+On white space - turn = 0
+After Line break - turn = 1
+After turn to 180 degrees  - turn = 2
+After turn to 90 degrees   - turn = 3
+After reaching home  - turn = 4
+
+The variable 'count' counts the local white spaces while being on line and frequently set to zero after 
+encountering black. At the line break, this count crosses 700 as no black can be seen further indicating
+the robot has reached terminus.
+
+
+*/
+
+
 
 #include <Romi32U4.h>
 #define BUZZER_PIN  6
@@ -18,10 +42,6 @@ int turn = 0;
 int16_t count_left_e;
 int16_t count_right_e;
 
-
-
-const int capacity = JSON_OBJECT_SIZE(6);
-StaticJsonDocument<capacity> doc;
 
 #define L_PWM_PIN 10
 #define L_DIR_PIN 16
@@ -61,6 +81,9 @@ void setup() {
   
   Serial.begin(9600);
 
+/*
+While on white space move forward and undergo the distance calculations with calcOdometry() function.
+*/
   while(identifiedWhite()){ 
     Serial.println("White...");
       moveForward();
@@ -71,15 +94,18 @@ void setup() {
 }
 
 int count = 0;
+
+/*
+
+*/
  
 void loop(){
 //Serial.println("Turn:" + String(turn) + "Count:" + String(count));
 
 if(turn == 0){
     if(count >= 700){
-        Serial.println("Inside turn 0");
-        stopAll();
-        turn = 1;
+        stopMe(1);    
+        play_tone();
     }
     else{
         if(identifiedWhite()){
@@ -92,10 +118,16 @@ if(turn == 0){
         }
      }
   }
+
+  if(turn == 4){
+      exit(0);  // or do nothing...as we have reached home
+    }
   
      
     calcOdometry(encoders.getCountsLeft(), encoders.getCountsRight(), turn);
 }
+
+
 
 void calcOdometry(int16_t encoderLPos, int16_t encoderRPos, int turn){
   
@@ -116,7 +148,7 @@ void calcOdometry(int16_t encoderLPos, int16_t encoderRPos, int turn){
     else if(theta < -6.28)
       theta += 6.28;
    
-     // Serial.println("Deg : " + String(theta * 57.2958) );
+     Serial.println("Deg : " + String(theta * 57.2958) );
         meanDistance = (SL + SR)/2;
         xProj = xProj + meanDistance*cos(theta);
         yProj = yProj + meanDistance*sin(theta);
@@ -132,80 +164,91 @@ void calcOdometry(int16_t encoderLPos, int16_t encoderRPos, int turn){
                       )*/
         }
       else if(turn == 1){   // Turn 180 degrees opposite to start location
-
-           /*Serial.println(
-                      "Final Theta : " + String(theta * 57.2958) + "\t" + 
-                      "final X : " + String(xProj) + "\t" + 
-                      "final Y : " + String(yProj)
-                      );*/
         
            float t = theta * 57.2958;
-           int difference = -180 - t;
+           double difference = -180 - t;
            //Serial.println("Inside Turn 1");
            Serial.println("Difference Angle is : " + String(difference));
-           
-              if(difference > 0){
+
+           if(turnToAngle(difference)){
+                Serial.println("Stopping");
+                resetEncoders();
+                encoderRPosPrev = 0;
+                encoderLPosPrev = 0;
+                xProj = 0;
+                yProj = 0;
+                theta = 0;
+                stopMe(2);
+                delay(2000);
+            }
+                     
+        }else if(turn == 2){ 
+            
+          Serial.println("Difference X is : " + String(float(finalX - xProj)));
+
+          int xSpeed = map(int(finalX - xProj), 0, finalX, 14, 30);
+          
+          if(int(finalX - xProj) <= 0){
+              stopMe(3);
+            }else{   
+              Serial.println("Moving Forward");
+                moveForward();
+                motor_drive(xSpeed, xSpeed);
+                delay(1700);
+              }
+          }else if(turn == 3){  
+              Serial.println("Inside Turn 3");
+              // Now turn 90 deg to travel in y direction...
+
+              int ySpeed = map(int(finalY - yProj), 0, finalY, 14, 30);
+              float t = theta * 57.2958;
+              double difference = -90 - t;
+              
+              if(turnToAngle(difference)){
+                  if(int(finalY - yProj) <= 0){
+                        stopMe(4);
+                    }else{
+                        moveForward();
+                        motor_drive(ySpeed, ySpeed);
+                        delay(1700);
+                      }
+                }
+            }
+  }
+
+
+
+ int turnToAngle(double difference){
+  
+            if(difference > 0){
                       moveLeft();
                       analogWrite( L_PWM_PIN, 20);
                       analogWrite( R_PWM_PIN, 20);
-                      //Serial.println("Moving Left");
+                      return false;
                   }else if(difference < 0){
                       moveRight();
                       //Serial.println("Moving Right");
                       analogWrite( L_PWM_PIN, 20);
                       analogWrite( R_PWM_PIN, 20);
-                    }else{
-                      Serial.println("Stopping");
-                           resetEncoders();
-                           encoderRPosPrev = 0;
-                           encoderLPosPrev = 0;
-                           xProj = 0;
-                           yProj = 0;
-                           theta = 0;
-                       stopAll();
-                       delay(2000);
-                        
+                      return false;
                     }
-                    //delay(500);
-                     
-        }else if(turn == 2){   // 
-
-          //Serial.println("Left Count : " + String(encoders.getCountsLeft()));
-          //Serial.println("Right Count : " + String(encoders.getCountsRight()));
-            
-          Serial.println("Difference X is : " + String(float(finalX - xProj)));
-
-          int y = map(int(finalX - xProj), 0, finalX, 14, 30);
-          
-          if(int(finalX - xProj) <= 0){
-              all_stop();
-              
-            }else{   
-              Serial.println("Moving Forward");
-                moveForward();
-                motor_drive(y, y);
-                Serial.println(
-                      "New X : " + String(xProj) + "\t" + 
-                      "NEW Y : " + String(yProj)
-                      );
-                      delay(1700);
-              }
-          }else if(turn == 3){  
-            Serial.println("Inside Turn 3");
-            
-            }
+                    else{
+                      return true;
+                      }
   }
 
 
-void stopAll(){
+
+void stopMe(int turnFlag){
       analogWrite( L_PWM_PIN, 0);
       analogWrite( R_PWM_PIN, 0);
-      turn = 2;
+      turn = turnFlag;
       Serial.println(
                       "Final Theta : " + String(finalTheta * 57.2958) + "\t" + 
                       "final X : " + String(finalX) + "\t" + 
                       "final Y : " + String(finalY)
                       );
+    
                       delay(3000);
     }
 
@@ -257,33 +300,6 @@ void motor_drive(int rs, int ls){                                        // Driv
   //delay(50); // Optional
 }
 
-void all_stop()
-{
-  analogWrite( L_PWM_PIN, 0);
-  analogWrite( R_PWM_PIN, 0);
-  turn = 3;
-  delay(200); 
-}
-
-
-void play_tone()
-{
-for (int i=0; i<=100; i++)
-{
-analogWrite(BUZZER_PIN, 10);
-delay(5);
-analogWrite(BUZZER_PIN, 0);
-}
-delay(100);
-for (int i=0; i<=100; i++)
-{
-analogWrite(BUZZER_PIN, 10);
-delay(5);
-analogWrite(BUZZER_PIN, 0);
-}
-}
-
-
 void calcNewTurn(double inputVal){
     //double inputVal = mP * inputVal;
     //Serial.println("Newspeed  is : " + String(inputVal)); 
@@ -308,13 +324,30 @@ void calcNewTurn(double inputVal){
   }
 
 int calcPidGain(float currentErr){
-                                                                         //Serial.println("Current Error is : " + String(currentErr));
-                                                                         //Serial.println("Error integral is : " + String(errorIntegral));
-                                                                         //Serial.println("Error derivative is : " + String(errorDerivative));
+  
     proportional = currentErr;
-    //errorIntegral =  currentErr + errorIntegral;
-    //errorDerivative =  currentErr - lastError;
-    //lastError = currentErr;
-                                                                         //Serial.println("Last Error is : " + String(lastError));
-  return int(proportional * Kp + errorIntegral * Ki + errorDerivative * Kd);
+    errorIntegral =  currentErr + errorIntegral;
+    errorDerivative =  currentErr - lastError;
+    lastError = currentErr;
+    
+    return int(proportional * Kp + errorIntegral * Ki + errorDerivative * Kd);
  }
+
+
+ 
+void play_tone()
+{
+for (int i=0; i<=100; i++)
+{
+analogWrite(BUZZER_PIN, 10);
+delay(5);
+analogWrite(BUZZER_PIN, 0);
+}
+delay(100);
+for (int i=0; i<=100; i++)
+{
+analogWrite(BUZZER_PIN, 10);
+delay(5);
+analogWrite(BUZZER_PIN, 0);
+}
+}
