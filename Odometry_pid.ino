@@ -168,26 +168,32 @@ void calcOdometry(int16_t encoderLPos, int16_t encoderRPos, int turn){
                     }
                     //delay(500);
                      
-        }else if(turn == 2){   // Now move forward towards Start point.
+        }else if(turn == 2){   // 
 
           //Serial.println("Left Count : " + String(encoders.getCountsLeft()));
           //Serial.println("Right Count : " + String(encoders.getCountsRight()));
             
           Serial.println("Difference X is : " + String(float(finalX - xProj)));
+
+          int y = map(int(finalX - xProj), 0, finalX, 14, 30);
           
-          if(int(finalX - xProj) == 0){
+          if(int(finalX - xProj) <= 0){
               all_stop();
+              
             }else{   
               Serial.println("Moving Forward");
                 moveForward();
-                motor_drive(18, 18);
+                motor_drive(y, y);
                 Serial.println(
                       "New X : " + String(xProj) + "\t" + 
                       "NEW Y : " + String(yProj)
                       );
                       delay(1700);
               }
-          }
+          }else if(turn == 3){  
+            Serial.println("Inside Turn 3");
+            
+            }
   }
 
 
@@ -255,6 +261,7 @@ void all_stop()
 {
   analogWrite( L_PWM_PIN, 0);
   analogWrite( R_PWM_PIN, 0);
+  turn = 3;
   delay(200); 
 }
 
